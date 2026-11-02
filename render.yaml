@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: bank-statement-ai
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: MAX_UPLOAD_MB
+        value: "10"
