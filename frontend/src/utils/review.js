@@ -58,13 +58,15 @@ export function toReviewState(result) {
   const rows = result.transactions.map((t) => {
     const row = { id: `r${rowSeq++}`, page: t.page, confidence: t.confidence, issues: t.issues, needsReview: t.needs_review, acknowledged: false, added: false };
     TXN_FIELDS.forEach((k) => (row[k] = editable(t[k])));
+    row.category = detectCategory(row.description.value);
+    row.categoryManual = false;
     return row;
   });
   return { fileName: result.file_name, header, headerAck: {}, rows };
 }
 
 export function emptyRow() {
-  const row = { id: `r${rowSeq++}`, page: null, confidence: 1, issues: [], needsReview: true, acknowledged: false, added: true };
+  const row = { id: `r${rowSeq++}`, page: null, confidence: 1, issues: [], needsReview: true, acknowledged: false, added: true, category: "Other", categoryManual: false };
   TXN_FIELDS.forEach((k) => (row[k] = { value: "", original: "", confidence: 1, needsReview: false, source: "user", note: null }));
   return row;
 }
@@ -172,7 +174,97 @@ export function buildSavePayload(state, reviewerNote = "") {
       withdrawal: cleanAmt(r.withdrawal.value),
       deposit: cleanAmt(r.deposit.value),
       balance: cleanAmt(r.balance.value),
+      category: r.category,
     })),
     reviewer_note: clean(reviewerNote),
   };
 }
+
+// ---- Categories, filters and the financial summary ----------------------------------------
+
+// Keep in sync with Category in backend/app/schemas.py
+export const CATEGORIES = ["Food", "Shopping", "Salary", "Bills", "Transport", "Entertainment", "Health", "Education", "Other"];
+
+// The first category whose keyword appears in the description wins (top to bottom).
+const KEYWORDS = {
+  Food: ["zomato", "swiggy", "restaurant", "food", "grocery", "groceries", "pizza", "cafe"],
+  Shopping: ["amazon", "flipkart", "myntra", "shopping", "clothes", "shoes"],
+  Salary: ["salary", "monthly income", "freelance", "payment received", "stipend"],
+  Bills: ["electricity", "water bill", "rent", "internet", "recharge", "mobile bill"],
+  Transport: ["uber", "ola", "petrol", "diesel", "bus", "train", "metro", "fuel"],
+  Entertainment: ["movie", "netflix", "prime video", "game", "concert"],
+  Health: ["medicine", "hospital", "doctor", "pharmacy", "clinic"],
+  Education: ["college", "school", "course", "book", "exam fee", "tuition"],
+};
+// Whole words only (letters on both sides don't count), so "rent" matches "NEFT/RENT PAYMENT"
+// but not "current account", and "bus" does not match "business". A trailing "s" is allowed.
+const RULES = Object.entries(KEYWORDS).map(([name, words]) => [name, new RegExp(`(?:^|[^a-z])(?:${words.join("|")})s?(?:$|[^a-z])`, "i")]);
+
+export function detectCategory(description) {
+  const text = String(description || "").replace(/\s+/g, " ");
+  return RULES.find(([, re]) => re.test(text))?.[0] || "Other";
+}
+
+// Valid positive amount from a text field, otherwise 0.
+const amountOf = (s) => {
+  const n = Number(String(s ?? "").replace(/,/g, ""));
+  return n > 0 ? n : 0;
+};
+
+/** A deposit is Income, a withdrawal is an Expense. */
+export function rowType(row) {
+  if (amountOf(row.deposit.value) > 0) return "Income";
+  if (amountOf(row.withdrawal.value) > 0) return "Expense";
+  return "";
+}
+
+export const EMPTY_FILTERS = { search: "", from: "", to: "", min: "", max: "", type: "All", category: "All" };
+
+export const hasFilters = (f) => Object.keys(EMPTY_FILTERS).some((k) => f[k] !== EMPTY_FILTERS[k]);
+
+const optionalNumber = (s) => {
+  const n = String(s).trim() === "" ? NaN : Number(String(s).replace(/,/g, ""));
+  return Number.isNaN(n) ? null : n;
+};
+
+/** Keeps the rows that match every filter that is set. */
+export function filterRows(rows, f) {
+  const search = f.search.trim().toLowerCase();
+  const min = optionalNumber(f.min);
+  const max = optionalNumber(f.max);
+  return rows.filter((r) => {
+    if (search && !r.description.value.toLowerCase().includes(search)) return false;
+    const date = r.date.value; // YYYY-MM-DD, so plain string comparison works
+    if (f.from && !(date && date >= f.from)) return false;
+    if (f.to && !(date && date <= f.to)) return false;
+    const amount = amountOf(r.deposit.value) || amountOf(r.withdrawal.value);
+    if (min !== null && amount < min) return false;
+    if (max !== null && amount > max) return false;
+    if (f.type !== "All" && rowType(r) !== f.type) return false;
+    if (f.category !== "All" && r.category !== f.category) return false;
+    return true;
+  });
+}
+
+/** Income, expenses, savings and the biggest expense category (summed in paise to avoid float drift). */
+export function summarize(rows) {
+  let income = 0;
+  let expenses = 0;
+  const byCategory = {};
+  rows.forEach((r) => {
+    const deposit = Math.round(amountOf(r.deposit.value) * 100);
+    const withdrawal = Math.round(amountOf(r.withdrawal.value) * 100);
+    income += deposit;
+    expenses += withdrawal;
+    if (withdrawal > 0) byCategory[r.category] = (byCategory[r.category] || 0) + withdrawal;
+  });
+  const top = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0];
+  return {
+    income: income / 100,
+    expenses: expenses / 100,
+    savings: (income - expenses) / 100,
+    topCategory: top ? { name: top[0], amount: top[1] / 100 } : null,
+  };
+}
+
+export const formatRupees = (n) => `${n < 0 ? "-" : ""}₹${formatAmount(Math.abs(n))}`;

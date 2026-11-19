@@ -63,3 +63,30 @@ With Tesseract present, results unchanged. 111 tests pass.
 - Not tested on real Windows. First OCR call downloads nothing (models ship in the wheel) but loads slowly (~10-15 s).
 - Docker image gets larger (onnxruntime + OpenCV). Tesseract is still installed there and used first.
 - Low-res/cropped real-world screenshots (e.g. 624px wide with cut-off Balance column) are still unreliable with either engine.
+
+## 2026-11-04 — Change 4: financial summary, automatic categories, search & filter
+
+**Why:** requested features. Mapping to this app: a deposit is Income and a withdrawal is an Expense; "Add row" is the way a
+transaction is added, so the category logic hooks into it.
+
+**New files**
+- `frontend/src/components/FinancialSummary.jsx`: Total Income / Total Expenses / Savings cards + top expense category.
+- `frontend/src/components/TransactionFilters.jsx`: Search & Filter box and the "Showing X of Y" count.
+
+**Changed files (small edits)**
+- `backend/app/schemas.py`: `Category` type and `ReviewedTransaction.category` (default "Other", so old saved rows still load).
+- `frontend/src/utils/review.js`: `CATEGORIES`, `detectCategory`, `rowType`, `filterRows`, `summarize`, `formatRupees`; category kept in
+  review state and sent in the save payload.
+- `frontend/src/App.jsx`: filter state, category handlers, the two new components in the page.
+- `frontend/src/components/TransactionsTable.jsx`: Category dropdown + Income/Expense label columns, "No transactions found" message,
+  narrower minimum column widths so the table still fits a 1440px screen.
+- `frontend/src/components/SavedStatements.jsx`: Category column in the saved-statement view.
+- Tests: `backend/tests/test_api.py` (+4), `frontend/src/__tests__/review.test.js` and `App.test.jsx` (+37). README updated.
+
+**Not changed:** API routes, DB table layout (category lives inside the saved JSON), extraction pipeline, theme, existing tests.
+**Not added:** `GET /api/summary`, `GET/POST/PUT /api/transactions`: transactions here only exist inside a statement, which is
+already saved through `POST /api/statements` (now with category). The summary and filters run on the statement under review.
+
+**Tested:** backend 115 passed, frontend 55 passed, production build OK, and the real app (headless Chrome) with
+`statement_text.pdf`: summary figures, categories, every filter, Clear Filters and manual category override, no console errors.
+**Unsure:** the "Statement analysis" panel in `SummaryBar.jsx` still uses its own older category names (e.g. Transfers, Fees); left as is.

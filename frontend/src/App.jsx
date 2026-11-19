@@ -19,11 +19,18 @@ import SummaryBar from "./components/SummaryBar";
 import HeaderFieldsCard from "./components/HeaderFieldsCard";
 import TransactionsTable from "./components/TransactionsTable";
 import SavedStatements from "./components/SavedStatements";
+import FinancialSummary from "./components/FinancialSummary";
+import TransactionFilters from "./components/TransactionFilters";
 import {
+  EMPTY_FILTERS,
   buildSavePayload,
   checkBalances,
+  detectCategory,
   emptyRow,
+  filterRows,
+  hasFilters,
   openReviewItems,
+  summarize,
   toReviewState,
   validationErrors,
 } from "./utils/review";
@@ -39,6 +46,7 @@ export default function App() {
   const [saveError, setSaveError] = useState(null);
   const [toast, setToast] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
 
   useEffect(() => {
     api.health().then(setHealth).catch(() => setHealth(null));
@@ -52,6 +60,7 @@ export default function App() {
       const res = await api.extract(file);
       setResult(res);
       setState(toReviewState(res));
+      setFilters(EMPTY_FILTERS);
       setNote("");
     } catch (e) {
       setError(e.message);
@@ -71,12 +80,26 @@ export default function App() {
   const setCell = (id, key, value) =>
     setState((s) => ({
       ...s,
-      rows: s.rows.map((r) => (r.id === id ? { ...r, [key]: { ...r[key], value }, acknowledged: true } : r)),
+      rows: s.rows.map((r) => {
+        if (r.id !== id) return r;
+        const next = { ...r, [key]: { ...r[key], value }, acknowledged: true };
+        // A row you added follows its description until you pick a category yourself.
+        // Rows from the statement keep the category they already have.
+        if (key === "description" && r.added && !r.categoryManual) next.category = detectCategory(value);
+        return next;
+      }),
     }));
+  const setCategory = (id, category) =>
+    setState((s) => ({ ...s, rows: s.rows.map((r) => (r.id === id ? { ...r, category, categoryManual: true } : r)) }));
   const ackRow = (id, v) => setState((s) => ({ ...s, rows: s.rows.map((r) => (r.id === id ? { ...r, acknowledged: v } : r)) }));
   const deleteRow = (id) => setState((s) => ({ ...s, rows: s.rows.filter((r) => r.id !== id) }));
-  const addRow = () => setState((s) => ({ ...s, rows: [...s.rows, emptyRow()] }));
+  const addRow = () => {
+    setFilters(EMPTY_FILTERS); // so the new (empty) row is not hidden by a filter
+    setState((s) => ({ ...s, rows: [...s.rows, emptyRow()] }));
+  };
 
+  const shown = useMemo(() => (state ? filterRows(state.rows, filters) : []), [state, filters]);
+  const totals = useMemo(() => summarize(shown), [shown]);
   const live = useMemo(() => (state ? checkBalances(state) : null), [state]);
   const open = useMemo(() => (state ? openReviewItems(state) : []), [state]);
   const errors = useMemo(() => (state ? validationErrors(state) : []), [state]);
@@ -127,8 +150,19 @@ export default function App() {
           {state && result && (
             <>
               <SummaryBar result={result} live={live} openCount={open.length} />
+              <FinancialSummary totals={totals} filtered={hasFilters(filters)} shown={shown.length} total={state.rows.length} />
               <HeaderFieldsCard header={state.header} headerAck={state.headerAck} onChange={setHeader} onAck={ackHeader} />
-              <TransactionsTable rows={state.rows} mismatched={live.mismatched} onChange={setCell} onAck={ackRow} onDelete={deleteRow} onAdd={addRow} />
+              <TransactionFilters filters={filters} onChange={setFilters} shown={shown.length} total={state.rows.length} />
+              <TransactionsTable
+                rows={state.rows}
+                shownRows={shown}
+                mismatched={live.mismatched}
+                onChange={setCell}
+                onCategory={setCategory}
+                onAck={ackRow}
+                onDelete={deleteRow}
+                onAdd={addRow}
+              />
               <Paper sx={{ p: 2 }}>
                 <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
                   <TextField

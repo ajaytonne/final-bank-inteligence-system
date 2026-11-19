@@ -27,14 +27,14 @@ bank-statement-ai/
 │   │       └── storage.py          SQLite store for reviewed statements
 │   ├── scripts/sample_data.py      synthetic statement generator
 │   ├── samples/                    6 ready-made dummy statements
-│   └── tests/                      108 pytest tests
+│   └── tests/                      115 pytest tests
 └── frontend/                 React 18 + Vite + MUI
     └── src/
         ├── App.jsx                  page + review state
         ├── api/client.js            fetch wrapper
         ├── utils/review.js          state mapping, validation, live balance check
-        ├── components/              Upload, Summary, Header card, Transactions table, Saved list
-        └── __tests__/               18 Vitest + Testing Library tests
+        ├── components/              Upload, Summary, Financial summary, Header card, Filters, Transactions table, Saved list
+        └── __tests__/               55 Vitest + Testing Library tests
 ```
 
 ## 1. Prerequisites
@@ -82,8 +82,8 @@ frontend origin to the backend `CORS_ORIGINS`.
 ## 4. Tests
 
 ```bash
-cd backend  && pytest -q      # 108 passed (OCR tests auto-skip if Tesseract missing)
-cd frontend && npm test       # 18 passed
+cd backend  && pytest -q      # 115 passed (OCR tests auto-skip if Tesseract missing)
+cd frontend && npm test       # 55 passed
 cd frontend && npm run build  # production build
 ```
 
@@ -171,6 +171,18 @@ decimal strings to avoid float rounding.
 - Rows that need review are highlighted with an issue tooltip and a **Reviewed** checkbox.
 - The running balance is **re-checked live** as you edit.
 - "Flagged only" filter, add/delete rows, view redacted raw text.
+- **Smart Financial Summary**: three cards for Total Income (deposits), Total Expenses (withdrawals)
+  and Savings (income minus expenses; green when positive, red when negative), plus the top expense
+  category. It updates as you add, edit or delete rows, and follows the Search & Filter box.
+- **Categories**: every row has a Category (Food, Shopping, Salary, Bills, Transport, Entertainment,
+  Health, Education, Other), picked from the description by simple whole-word keyword matching
+  (`detectCategory` in `frontend/src/utils/review.js`). Rows from the statement get their category
+  when extracted and keep it when edited. A row you add follows its description until you choose a
+  category yourself; your choice is never overridden. The category is saved with the statement
+  (old saved statements without one show "Other").
+- **Search & Filter**: description (partial, any case), From / To date, minimum / maximum amount,
+  type (Income / Expense) and category. All filters work together, "Clear Filters" resets them, and
+  the box shows "Showing X of Y transactions". "Add row" clears the filters so the new row is visible.
 - **Save** stays disabled until all flagged items are reviewed and client validation passes;
   the backend validates again (masked account, period order, no negative amounts,
   not both deposit and withdrawal).

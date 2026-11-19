@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Checkbox,
+  Chip,
   FormControlLabel,
   IconButton,
   Paper,
@@ -22,16 +23,18 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ConfidenceChip from "./ConfidenceChip";
-import { fieldError, txnFieldType } from "../utils/review";
+import { CATEGORIES, fieldError, rowType, txnFieldType } from "../utils/review";
 
 const COLS = [
-  { key: "date", label: "Date", width: 150 },
-  { key: "effective_date", label: "Effective date", width: 150 },
-  { key: "description", label: "Description", width: 260 },
-  { key: "reference", label: "Cheque / reference", width: 160 },
-  { key: "withdrawal", label: "Withdrawal", width: 120, align: "right" },
-  { key: "deposit", label: "Deposit", width: 120, align: "right" },
-  { key: "balance", label: "Balance", width: 130, align: "right" },
+  { key: "date", label: "Date", width: 130 },
+  { key: "effective_date", label: "Effective date", width: 130 },
+  { key: "description", label: "Description", width: 220 },
+  { key: "category", label: "Category", width: 120 }, // dropdown, see CategoryCell
+  { key: "type", label: "Type", width: 80 }, // Income / Expense, see TypeCell
+  { key: "reference", label: "Cheque / reference", width: 130 },
+  { key: "withdrawal", label: "Withdrawal", width: 110, align: "right" },
+  { key: "deposit", label: "Deposit", width: 110, align: "right" },
+  { key: "balance", label: "Balance", width: 120, align: "right" },
 ];
 
 function Cell({ row, col, onChange }) {
@@ -62,9 +65,48 @@ function Cell({ row, col, onChange }) {
   );
 }
 
-export default function TransactionsTable({ rows, mismatched, onChange, onAck, onDelete, onAdd }) {
+function CategoryCell({ row, label, onCategory }) {
+  return (
+    <TableCell sx={{ minWidth: 120 }}>
+      <TextField
+        select
+        variant="standard"
+        size="small"
+        fullWidth
+        value={row.category}
+        onChange={(e) => onCategory(row.id, e.target.value)}
+        SelectProps={{ native: true }}
+        inputProps={{ "aria-label": `Category row ${label}`, style: { fontSize: 13 } }}
+      >
+        {CATEGORIES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </TextField>
+    </TableCell>
+  );
+}
+
+function TypeCell({ row }) {
+  const type = rowType(row);
+  return (
+    <TableCell>
+      {type ? (
+        <Chip size="small" variant="outlined" label={type} color={type === "Income" ? "success" : "error"} />
+      ) : (
+        <Typography variant="caption" color="text.secondary">
+          —
+        </Typography>
+      )}
+    </TableCell>
+  );
+}
+
+// `shownRows` is `rows` after the Search & Filter box has been applied (App does the filtering).
+export default function TransactionsTable({ rows, shownRows = rows, mismatched, onChange, onCategory, onAck, onDelete, onAdd }) {
   const [flaggedOnly, setFlaggedOnly] = useState(false);
-  const visible = flaggedOnly ? rows.filter((r) => r.needsReview || mismatched.has(r.id)) : rows;
+  const visible = flaggedOnly ? shownRows.filter((r) => r.needsReview || mismatched.has(r.id)) : shownRows;
   return (
     <Paper sx={{ p: 2 }}>
       <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
@@ -78,6 +120,9 @@ export default function TransactionsTable({ rows, mismatched, onChange, onAck, o
           Add row
         </Button>
       </Stack>
+      <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 1 }}>
+        Category is picked automatically from the description. You can change it any time.
+      </Typography>
       <TableContainer sx={{ maxHeight: 560 }}>
         <Table stickyHeader size="small">
           <TableHead>
@@ -112,9 +157,15 @@ export default function TransactionsTable({ rows, mismatched, onChange, onAck, o
                       )}
                     </Stack>
                   </TableCell>
-                  {COLS.map((c) => (
-                    <Cell key={c.key} row={r} col={c} onChange={onChange} />
-                  ))}
+                  {COLS.map((c) =>
+                    c.key === "category" ? (
+                      <CategoryCell key={c.key} row={r} label={idx + 1} onCategory={onCategory} />
+                    ) : c.key === "type" ? (
+                      <TypeCell key={c.key} row={r} />
+                    ) : (
+                      <Cell key={c.key} row={r} col={c} onChange={onChange} />
+                    )
+                  )}
                   <TableCell>
                     {r.added ? <Typography variant="caption">manual</Typography> : <ConfidenceChip confidence={r.confidence} />}
                   </TableCell>
@@ -146,7 +197,11 @@ export default function TransactionsTable({ rows, mismatched, onChange, onAck, o
               <TableRow>
                 <TableCell colSpan={COLS.length + 4} align="center">
                   <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                    {rows.length ? "No flagged rows." : "No transactions were extracted. Add rows manually if needed."}
+                    {rows.length === 0
+                      ? "No transactions were extracted. Add rows manually if needed."
+                      : shownRows.length === 0
+                        ? "No transactions found. Try changing or clearing the filters."
+                        : "No flagged rows."}
                   </Typography>
                 </TableCell>
               </TableRow>

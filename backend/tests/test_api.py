@@ -118,3 +118,39 @@ def test_full_flow_extract_then_save(client, text_pdf):
     r = client.post("/api/statements", json=payload)
     assert r.status_code == 201, r.text
     assert len(r.json()["statement"]["transactions"]) == len(ex["transactions"])
+
+
+def test_save_keeps_category(client):
+    body = reviewed()
+    body["transactions"][0]["category"] = "Health"
+    sid = client.post("/api/statements", json=body).json()["id"]
+    got = client.get(f"/api/statements/{sid}").json()
+    assert got["statement"]["transactions"][0]["category"] == "Health"
+
+
+def test_category_defaults_to_other(client):
+    sid = client.post("/api/statements", json=reviewed()).json()["id"]  # no category sent
+    got = client.get(f"/api/statements/{sid}").json()
+    assert got["statement"]["transactions"][0]["category"] == "Other"
+
+
+def test_save_rejects_unknown_category(client):
+    body = reviewed()
+    body["transactions"][0]["category"] = "Groceries"
+    assert client.post("/api/statements", json=body).status_code == 422
+
+
+def test_old_saved_statement_without_category_still_loads(tmp_path):
+    import json
+    import sqlite3
+
+    from app.services.storage import StatementStore
+
+    store = StatementStore(str(tmp_path / "old.db"))
+    with sqlite3.connect(store.db_path) as c:  # a row written before categories existed
+        c.execute(
+            "INSERT INTO statements (created_at, file_name, account_holder, transaction_count, payload)"
+            " VALUES (?, ?, ?, ?, ?)",
+            ("2026-09-30T00:00:00+00:00", "old.pdf", "Priya Sharma", 1, json.dumps(reviewed())),
+        )
+    assert store.get(1).statement.transactions[0].category == "Other"

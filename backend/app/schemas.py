@@ -8,6 +8,11 @@ T = TypeVar("T")
 
 Source = Literal["pdf_text", "ocr", "llm", "derived", "user", "none"]
 
+# Keep in sync with CATEGORIES in frontend/src/utils/review.js
+Category = Literal[
+    "Food", "Shopping", "Salary", "Bills", "Transport", "Entertainment", "Health", "Education", "Other"
+]
+
 
 class ExtractedField(BaseModel, Generic[T]):
     value: Optional[T] = None
@@ -112,6 +117,8 @@ class ReviewedTransaction(BaseModel):
     deposit: Optional[Decimal] = Field(None, ge=0, max_digits=18, decimal_places=2)
     withdrawal: Optional[Decimal] = Field(None, ge=0, max_digits=18, decimal_places=2)
     balance: Optional[Decimal] = Field(None, max_digits=18, decimal_places=2)
+    # Old saved statements have no category, so they load as "Other".
+    category: Category = "Other"
 
     @model_validator(mode="after")
     def one_side_only(self):

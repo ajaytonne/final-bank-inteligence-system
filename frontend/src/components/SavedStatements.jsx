@@ -96,6 +96,7 @@ export default function SavedStatements({ refreshKey }) {
                   <TableRow>
                     <TableCell>Date</TableCell>
                     <TableCell>Description</TableCell>
+                    <TableCell>Category</TableCell>
                     <TableCell>Ref</TableCell>
                     <TableCell align="right">Withdrawal</TableCell>
                     <TableCell align="right">Deposit</TableCell>
@@ -107,6 +108,7 @@ export default function SavedStatements({ refreshKey }) {
                     <TableRow key={i}>
                       <TableCell>{t.date}</TableCell>
                       <TableCell>{t.description}</TableCell>
+                      <TableCell>{t.category}</TableCell>
                       <TableCell>{t.reference}</TableCell>
                       <TableCell align="right">{formatAmount(t.withdrawal)}</TableCell>
                       <TableCell align="right">{formatAmount(t.deposit)}</TableCell>
