@@ -220,7 +220,9 @@ to include the frontend origin. The supplied `render.yaml` and Dockerfile deploy
 frontend and backend; set the variables above in the hosting provider as needed. `DB_PATH` should
 point to persistent storage if saved reviews must survive container replacement. Tesseract must
 be installed on the backend host for scanned PDFs and statement images; the supplied Dockerfile
-installs it.
+installs it. The Render free-tier configuration uses `OCR_DPI=180` to reduce OCR workload; lower
+resolution may make small or faint text harder to recognize. Set it to `300` when OCR accuracy is
+more important than extraction speed.
 
 ## 10. Known limitations
 

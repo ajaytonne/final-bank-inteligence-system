@@ -7,3 +7,5 @@ services:
     envVars:
       - key: MAX_UPLOAD_MB
         value: "10"
+      - key: OCR_DPI
+        value: "180"
