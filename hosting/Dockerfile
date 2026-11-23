@@ -8,7 +8,7 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-hin tesseract-ocr-mar unzip && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY hosting/deployment-bundle.zip.part* /tmp/
-RUN cat /tmp/deployment-bundle.zip.part* > /tmp/source.zip && unzip -q /tmp/source.zip -d /tmp/unpacked && cp -a /tmp/unpacked/final-bank-inteligence-system/backend/. /app/
+RUN cat /tmp/deployment-bundle.zip.part* > /tmp/source.zip && unzip -q /tmp/source.zip -d /tmp/unpacked && cp -a /tmp/unpacked/final-bank-inteligence-system/backend/. /app/ && pip install --no-cache-dir -r /app/requirements.txt
 COPY --from=frontend /build/final-bank-inteligence-system/frontend/dist /app/frontend_dist
 ENV FRONTEND_DIST=/app/frontend_dist DB_PATH=/tmp/statements.db PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 OCR_LANG=eng+hin+mar
 RUN useradd --system --uid 10001 --create-home appuser && chown -R appuser:appuser /app
