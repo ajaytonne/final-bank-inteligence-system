@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: bank-statement-intelligence-hardened
+    runtime: docker
+    dockerfilePath: hosting/Dockerfile
+    dockerContext: .
+    plan: 0.5c-512mb
+    healthCheckPath: /readyz
+    disk:
+      name: bank-statement-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: AUTH_MODE
+        value: standalone
+      - key: DB_PATH
+        value: /data/statements.db
+      - key: AUTH_USERNAME
+        value: admin
+      - key: AUTH_PASSWORD
+        generateValue: true
+      - key: AUTH_SECRET_KEY
+        generateValue: true
+      - key: SESSION_TTL_HOURS
+        value: "12"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: PUBLIC_ORIGIN
+        value: ""
+      - key: API_KEYS
+        generateValue: true
+      - key: MAX_UPLOAD_MB
+        value: "10"
+      - key: MAX_PAGES
+        value: "30"
+      - key: OCR_DPI
+        value: "300"
