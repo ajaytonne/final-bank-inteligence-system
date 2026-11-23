@@ -1,22 +1,18 @@
 services:
   - type: web
-    name: bank-statement-intelligence-hardened
+    name: bank-statement-intelligence-preview
     runtime: docker
     dockerfilePath: hosting/Dockerfile
     dockerContext: .
-    plan: 0.5c-512mb
+    plan: free
     healthCheckPath: /readyz
-    disk:
-      name: bank-statement-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: APP_ENV
         value: production
       - key: AUTH_MODE
         value: standalone
       - key: DB_PATH
-        value: /data/statements.db
+        value: /tmp/statements.db
       - key: AUTH_USERNAME
         value: admin
       - key: AUTH_PASSWORD
@@ -37,3 +33,5 @@ services:
         value: "30"
       - key: OCR_DPI
         value: "300"
+      - key: OCR_LANG
+        value: eng+hin+mar
